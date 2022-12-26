@@ -16,42 +16,51 @@ namespace DB.Operations.Repositories
 
         public void Create(Product product)
         {
-            using var connection = new SqlConnection(_connectionString);
-            connection.Open();
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                connection.Open();
+                using (var adapter = new SqlDataAdapter(SelectQuery, connection))
+                {
+                    using (var ds = new DataSet())
+                    {
+                        adapter.Fill(ds);
 
-            using var adapter = new SqlDataAdapter(SelectQuery, connection);
-            using var ds = new DataSet();
-            adapter.Fill(ds);
+                        var dt = ds.Tables[0];
+                        var row = dt.NewRow();
+                        row["Name"] = product.Name;
+                        row["Description"] = product.Description;
+                        row["Height"] = product.Height;
+                        row["Width"] = product.Width;
+                        row["Length"] = product.Length;
+                        row["Weight"] = product.Weight;
+                        dt.Rows.Add(row);
 
-            var dt = ds.Tables[0];
-            var row = dt.NewRow();
-            row["Name"] = product.Name;
-            row["Description"] = product.Description;
-            row["Height"] = product.Height;
-            row["Width"] = product.Width;
-            row["Length"] = product.Length;
-            row["Weight"] = product.Weight;
-            dt.Rows.Add(row);
-
-            var commandBuilder = new SqlCommandBuilder(adapter);
-            commandBuilder.GetInsertCommand();
-            adapter.Update(ds);
-            connection.Close();
+                        adapter.InsertCommand = new SqlCommandBuilder(adapter).GetInsertCommand();
+                        adapter.Update(ds);
+                    }
+                }
+                connection.Close();
+            }
         }
 
         public Product Read(int id)
         {
-            using var connection = new SqlConnection(_connectionString);
-            connection.Open();
-            var query = "SELECT Id, Name, Description, Weight, Height, Width, Length" +
-                        " FROM dbo.Product" +
-                        " WHERE Id = @Id;";
+            SqlDataReader reader;
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                var query = "SELECT Id, Name, Description, Weight, Height, Width, Length" +
+                            " FROM dbo.Product" +
+                            " WHERE Id = @Id;";
 
-            var command = new SqlCommand(query, connection);
-            command.Parameters.AddWithValue("@Id", id);
+                connection.Open();
+                using (var command = new SqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@Id", id);
 
-            using var reader = command.ExecuteReader();
-
+                    reader = command.ExecuteReader();
+                }
+                connection.Close();
+            }
             if (!reader.HasRows) return null;
 
             Product product = null;
@@ -73,54 +82,69 @@ namespace DB.Operations.Repositories
 
         public void Update(Product entity, int id)
         {
-            using var connection = new SqlConnection(_connectionString);
-            connection.Open();
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                connection.Open();
+                using (var adapter = new SqlDataAdapter(SelectQuery, connection))
+                {
+                    using (var ds = new DataSet())
+                    {
+                        adapter.Fill(ds);
 
-            var adapter = new SqlDataAdapter(SelectQuery, connection);
-            var ds = new DataSet();
-            adapter.Fill(ds);
+                        var dt = ds.Tables[0];
+                        var row = dt.AsEnumerable().Single(x => x.Field<int>("Id") == id);
+                        row["Name"] = entity.Name;
+                        row["Description"] = entity.Description;
+                        row["Weight"] = entity.Weight;
+                        row["Height"] = entity.Height;
+                        row["Width"] = entity.Width;
+                        row["Length"] = entity.Length;
 
-            var dt = ds.Tables[0];
-            var row = dt.AsEnumerable().Single(x => x.Field<int>("Id") == id);
-            row["Name"] = entity.Name;
-            row["Description"] = entity.Description;
-            row["Weight"] = entity.Weight;
-            row["Height"] = entity.Height;
-            row["Width"] = entity.Width;
-            row["Length"] = entity.Length;
-
-            var commandBuilder = new SqlCommandBuilder(adapter);
-            adapter.Update(ds);
+                        adapter.UpdateCommand = new SqlCommandBuilder(adapter).GetUpdateCommand();
+                        adapter.Update(ds);
+                    }
+                }
+                connection.Close();
+            }
         }
 
         public void Delete(int id)
         {
-            using var connection = new SqlConnection(_connectionString);
-            connection.Open();
-            var adapter = new SqlDataAdapter(SelectQuery, connection);
-            var ds = new DataSet();
-            adapter.Fill(ds);
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                connection.Open();
+                using (var adapter = new SqlDataAdapter(SelectQuery, connection))
+                {
+                    using (var ds = new DataSet())
+                    {
+                        adapter.Fill(ds);
 
-            var dt = ds.Tables[0];
-            var row = dt.AsEnumerable().Single(x => x.Field<int>("Id") == id);
-            row.Delete();
+                        var dt = ds.Tables[0];
+                        var row = dt.AsEnumerable().Single(x => x.Field<int>("Id") == id);
+                        row.Delete();
 
-            var commandBuilder = new SqlCommandBuilder(adapter);
-            adapter.Update(ds);
+                        adapter.DeleteCommand = new SqlCommandBuilder(adapter).GetDeleteCommand();
+                        adapter.Update(ds);
+                    }
+                }
+                connection.Close();
+            }
         }
 
         public IEnumerable<Product> GetAll()
         {
             var products = new List<Product>();
+            SqlDataReader reader;
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                var query = "SELECT Id, Name, Description, Weight, Height, Width, Length" +
+                            " FROM dbo.Product;";
 
-            using var connection = new SqlConnection(_connectionString);
-            connection.Open();
-            var query = "SELECT Id, Name, Description, Weight, Height, Width, Length" +
-                        " FROM dbo.Product;";
-
-            var command = new SqlCommand(query, connection);
-            using var reader = command.ExecuteReader();
-
+                connection.Open();
+                var command = new SqlCommand(query, connection);
+                reader = command.ExecuteReader();
+                connection.Close();
+            }
             if (!reader.HasRows) return products;
 
             while (reader.Read())

@@ -15,33 +15,43 @@ namespace DB.Operations.Repositories
 
         public void Create(Order entity)
         {
-            using var connection = new SqlConnection(_connectionString);
-            connection.Open();
-            var query = "INSERT INTO [dbo].[Order]" +
-                        " (Status, CreatedDate, UpdatedDate, ProductId)" +
-                        " VALUES (@Status, @CreatedDate, @UpdatedDate, @ProductId);";
-            var command = new SqlCommand(query, connection);
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                var query = "INSERT INTO [dbo].[Order]" +
+                            " (Status, CreatedDate, UpdatedDate, ProductId)" +
+                            " VALUES (@Status, @CreatedDate, @UpdatedDate, @ProductId);";
 
-            command.Parameters.AddWithValue("@Status", entity.Status);
-            command.Parameters.AddWithValue("@CreatedDate", entity.CreatedDate);
-            command.Parameters.AddWithValue("@UpdatedDate", entity.UpdatedDate);
-            command.Parameters.AddWithValue("@ProductId", entity.ProductId);
+                connection.Open();
+                using (var command = new SqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@Status", entity.Status);
+                    command.Parameters.AddWithValue("@CreatedDate", entity.CreatedDate);
+                    command.Parameters.AddWithValue("@UpdatedDate", entity.UpdatedDate);
+                    command.Parameters.AddWithValue("@ProductId", entity.ProductId);
 
-            command.ExecuteNonQuery();
+                    command.ExecuteNonQuery();
+                }
+                connection.Close();
+            }
         }
 
         public Order Read(int id)
         {
-            using var connection = new SqlConnection(_connectionString);
-            var query = "SELECT Id, Status, CreatedDate, UpdatedDate, ProductId" +
-                        " FROM [dbo].[Order]" +
-                        " WHERE Id = @Id;";
-            connection.Open();
+            SqlDataReader reader;
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                var query = "SELECT Id, Status, CreatedDate, UpdatedDate, ProductId" +
+                            " FROM [dbo].[Order]" +
+                            " WHERE Id = @Id;";
 
-            var command = new SqlCommand(query, connection);
-            command.Parameters.AddWithValue("@Id", id);
-            using var reader = command.ExecuteReader();
-
+                connection.Open();
+                using (var command = new SqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@Id", id);
+                    reader = command.ExecuteReader();
+                }
+                connection.Close();
+            }
             if (!reader.HasRows) return null;
 
             Order order = null;
@@ -61,64 +71,80 @@ namespace DB.Operations.Repositories
 
         public void Update(Order entity, int id)
         {
-            using var connection = new SqlConnection(_connectionString);
-            connection.Open();
-            var query = "UPDATE [dbo].[Order]" +
-                        " SET Status = @Status," +
-                        " CreatedDate = @CreatedDate," +
-                        " UpdatedDate = @UpdatedDate" +
-                        " WHERE Id = @Id;";
-            var command = new SqlCommand(query, connection);
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                var query = "UPDATE [dbo].[Order]" +
+                            " SET Status = @Status," +
+                            " CreatedDate = @CreatedDate," +
+                            " UpdatedDate = @UpdatedDate" +
+                            " WHERE Id = @Id;";
 
-            command.Parameters.AddWithValue("@Id", id);
-            command.Parameters.AddWithValue("@Status", entity.Status);
-            command.Parameters.AddWithValue("@CreatedDate", entity.CreatedDate);
-            command.Parameters.AddWithValue("@UpdatedDate", entity.UpdatedDate);
+                connection.Open();
+                using (var command = new SqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@Id", id);
+                    command.Parameters.AddWithValue("@Status", entity.Status);
+                    command.Parameters.AddWithValue("@CreatedDate", entity.CreatedDate);
+                    command.Parameters.AddWithValue("@UpdatedDate", entity.UpdatedDate);
 
-            command.ExecuteNonQuery();
+                    command.ExecuteNonQuery();
+                }
+                connection.Close();
+            }
         }
 
         public void Delete(int id)
         {
-            using var connection = new SqlConnection(_connectionString);
-            connection.Open();
-            var query = "DELETE FROM [dbo].[Order] WHERE Id = @Id;";
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                var query = "DELETE FROM [dbo].[Order] WHERE Id = @Id;";
 
-            var command = new SqlCommand(query, connection);
-            command.Parameters.AddWithValue("@Id", id);
+                connection.Open();
+                using (var command = new SqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@Id", id);
 
-            command.ExecuteNonQuery();
+                    command.ExecuteNonQuery();
+                }
+                connection.Close();
+            }
         }
 
         public void Delete(int? month = null, OrderStatus? status = null, int? year = null, int? productId = null)
         {
-            const string deleteOrders = "DeleteOrders";
-
-            using var connection = new SqlConnection(_connectionString);
-            connection.Open();
-
-            var sqlTransaction = connection.BeginTransaction();
-            var command = new SqlCommand(deleteOrders, connection)
+            using (var connection = new SqlConnection(_connectionString))
             {
-                Transaction = sqlTransaction,
-                CommandType = CommandType.StoredProcedure
-            };
+                connection.Open();
+                using (SqlTransaction sqlTransaction = connection.BeginTransaction())
+                {
+                    const string deleteOrders = "DeleteOrders";
+                    using (SqlCommand command = new SqlCommand(deleteOrders, connection))
+                    {
+                        command.Transaction = sqlTransaction;
+                        command.CommandType = CommandType.StoredProcedure;
 
-            command.Parameters.AddWithValue("@Month", month);
-            command.Parameters.AddWithValue("@Status", status);
-            command.Parameters.AddWithValue("@Year", year);
-            command.Parameters.AddWithValue("@ProductId", productId);
+                        command.Parameters.AddWithValue("@Month", month);
+                        command.Parameters.AddWithValue("@Status", status);
+                        command.Parameters.AddWithValue("@Year", year);
+                        command.Parameters.AddWithValue("@ProductId", productId);
 
-            try
-            {
-                command.ExecuteScalar();
-                sqlTransaction.Commit();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                sqlTransaction.Rollback();
-                throw;
+                        try
+                        {
+                            command.ExecuteScalar();
+                            sqlTransaction.Commit();
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                            sqlTransaction.Rollback();
+                            throw;
+                        }
+                        finally
+                        {
+                            connection.Close();
+                        }
+                    }
+                }
             }
         }
 
@@ -129,23 +155,26 @@ namespace DB.Operations.Repositories
 
         public IEnumerable<Order> GetAll(int? month = null, OrderStatus? status = null, int? year = null, int? productId = null)
         {
-            var orders = new List<Order>();
-
-            const string fetchOrders = "FetchOrders";
-            using var connection = new SqlConnection(_connectionString);
-            connection.Open();
-            var command = new SqlCommand(fetchOrders, connection)
+            SqlDataReader reader;
+            using (var connection = new SqlConnection(_connectionString))
             {
-                CommandType = CommandType.StoredProcedure
-            };
+                connection.Open();
+                const string fetchOrders = "FetchOrders";
+                using (var command = new SqlCommand(fetchOrders, connection))
+                {
+                    command.CommandType = CommandType.StoredProcedure;
 
-            command.Parameters.AddWithValue("@Month", month);
-            command.Parameters.AddWithValue("@Status", status);
-            command.Parameters.AddWithValue("@Year", year);
-            command.Parameters.AddWithValue("@ProductId", productId);
+                    command.Parameters.AddWithValue("@Month", month);
+                    command.Parameters.AddWithValue("@Status", status);
+                    command.Parameters.AddWithValue("@Year", year);
+                    command.Parameters.AddWithValue("@ProductId", productId);
 
-            using var reader = command.ExecuteReader();
+                    reader = command.ExecuteReader();
+                    connection.Close();
+                }
+            }
 
+            var orders = new List<Order>();
             if (!reader.HasRows) return null;
 
             while (reader.Read())
